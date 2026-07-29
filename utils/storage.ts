@@ -3,7 +3,7 @@ import type { ExtensionSettings } from '../types';
 
 // Define storage items with proper typing
 export const twentyUrlStorage = storage.defineItem<string>('sync:twentyUrl', {
-  fallback: '',
+  fallback: 'https://crm.southconnect.io',
 });
 
 export const lastCapturedStorage = storage.defineItem<Array<{

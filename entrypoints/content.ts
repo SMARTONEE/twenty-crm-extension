@@ -7,14 +7,13 @@ const FLOATING_BUTTON_STYLES = `
     position: fixed;
     top: 50%;
     right: 24px;
-    transform: translateY(-50%);
     z-index: 99999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     cursor: grab;
     user-select: none;
   }
 
-  .twenty-capture-container:active {
+  .twenty-capture-container.dragging {
     cursor: grabbing;
   }
   
@@ -469,29 +468,34 @@ export default defineContentScript({
       document.body.appendChild(container);
 
       // Drag to move
+      let dragOffsetX = 0, dragOffsetY = 0;
       container.addEventListener('mousedown', (e) => {
-        if ((e.target as HTMLElement).closest('button, input, .twenty-field-row, .twenty-search-panel, .twenty-search-result')) return;
+        if ((e.target as HTMLElement).closest('button, input, a, .twenty-field-row, .twenty-search-panel')) return;
         isDragging = true;
-        dragStartX = e.clientX;
-        dragStartY = e.clientY;
+        container!.classList.add('dragging');
         const rect = container!.getBoundingClientRect();
-        containerRight = window.innerWidth - rect.right;
-        containerTop = rect.top;
+        dragOffsetX = e.clientX - rect.left;
+        dragOffsetY = e.clientY - rect.top;
+        container!.style.transition = 'none';
         e.preventDefault();
       });
 
-      document.addEventListener('mousemove', (e) => {
+      const onMove = (e: MouseEvent) => {
         if (!isDragging || !container) return;
-        const dx = dragStartX - e.clientX;
-        const dy = e.clientY - dragStartY;
-        container.style.top = `${containerTop + dy}px`;
-        container.style.right = `${containerRight + dx}px`;
-        container.style.transform = 'none';
-      });
+        container.style.top = `${e.clientY - dragOffsetY}px`;
+        container.style.right = 'auto';
+        container.style.left = `${e.clientX - dragOffsetX}px`;
+      };
 
-      document.addEventListener('mouseup', () => {
+      const onUp = () => {
+        if (!isDragging) return;
         isDragging = false;
-      });
+        container!.classList.remove('dragging');
+        container!.style.transition = '';
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
       
       // Initial render
       render();

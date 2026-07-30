@@ -548,6 +548,7 @@ export class TwentyApiClient {
         jobTitle: data.headline || '',
         avatarUrl: avatarUrl,
         city: data.location || '',
+        source: 'LINKEDIN_OUTBOUND',
         // Link to company if we found/created one
         companyId: companyId,
       },
@@ -710,6 +711,7 @@ export class TwentyApiClient {
             jobTitle: personData.headline || undefined,
             avatarUrl: avatarUrl,
             city: personData.location || undefined,
+            source: 'LINKEDIN_OUTBOUND',
             companyId: companyId,
           },
         }

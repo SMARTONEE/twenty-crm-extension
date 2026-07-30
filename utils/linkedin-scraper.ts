@@ -17,7 +17,7 @@ export function getLinkedInIdentifier(url: string): string | null {
 }
 
 // Try to extract data from LinkedIn's embedded JSON-LD / structured data
-function tryJsonLD(): { name?: string; headline?: string; image?: string } | null {
+function tryJsonLD(): { name?: string; headline?: string; image?: string; description?: string } | null {
   try {
     const scripts = document.querySelectorAll('script[type="application/ld+json"]');
     for (const script of scripts) {
@@ -30,7 +30,7 @@ function tryJsonLD(): { name?: string; headline?: string; image?: string } | nul
         };
       }
       if (data['@type'] === 'Organization') {
-        return { name: data.name };
+        return { name: data.name, description: data.description };
       }
     }
   } catch { /* ignore parse errors */ }
@@ -106,10 +106,48 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       }
     }
 
-    // If all DOM methods fail, try JSON-LD and meta
+    // Fallback: try h2 elements (LinkedIn sometimes uses h2 for names now)
+    if (!nameElement) {
+      const allH2s = document.querySelectorAll('h2');
+      for (const h2 of allH2s) {
+        const text = h2.textContent?.trim() || '';
+        if (text.length > 1 && !text.includes('LinkedIn') && h2.offsetParent !== null) {
+          nameElement = h2;
+          console.log('[Scraper] Found name via h2 fallback:', text);
+          break;
+        }
+      }
+    }
+
+    // Fallback: document.title (LinkedIn titles are "Name | LinkedIn")
+    let titleName = '';
+    if (!nameElement) {
+      const title = document.title || '';
+      const titleParts = title.split('|')[0]?.trim() || '';
+      if (titleParts && titleParts.length > 1 && titleParts.toLowerCase() !== 'linkedin') {
+        titleName = titleParts;
+        console.log('[Scraper] Found name via document.title:', titleName);
+      }
+    }
+
+    // Fallback: any visible, prominent heading-like element at the top of the page
+    if (!nameElement) {
+      const candidates = document.querySelectorAll('[class*="text-heading"], [class*="t-24"], [class*="t-32"], [class*="v-align-middle"], header h2, .pv-top-card h2, [class*="inline"][class*="t-"]');
+      for (const el of candidates) {
+        const text = el.textContent?.trim() || '';
+        if (text.length > 1 && text.length < 80 && !text.includes('LinkedIn') && !text.includes('View profile') && el.offsetParent !== null) {
+          nameElement = el;
+          console.log('[Scraper] Found name via heading fallback:', text);
+          break;
+        }
+      }
+    }
+
+    // If all DOM methods fail, try JSON-LD, meta, and document.title
     const fullName = nameElement?.textContent?.trim()
       || jsonLD?.name
       || meta?.name
+      || titleName
       || '';
 
     if (!fullName) {

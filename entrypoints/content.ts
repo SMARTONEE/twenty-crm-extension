@@ -266,6 +266,8 @@ const FLOATING_BUTTON_STYLES = `
   /* Search Panel */
   .twenty-search-panel {
     position: fixed;
+    top: 80px;
+    right: 260px;
     width: 220px;
     background: white;
     border-radius: 12px;
@@ -1034,13 +1036,6 @@ export default defineContentScript({
       if (showFieldEditor && editingField) {
         const editorPanel = document.createElement('div');
         editorPanel.className = 'twenty-search-panel';
-
-        // Position panel to the left of the container
-        const containerRect = container?.getBoundingClientRect();
-        if (containerRect) {
-          editorPanel.style.top = `${containerRect.top}px`;
-          editorPanel.style.right = `${window.innerWidth - containerRect.left + 12}px`;
-        }
         
         const header = document.createElement('div');
         header.className = 'twenty-search-header';

@@ -288,19 +288,25 @@ function scrapeCurrentCompanyFromProfile(): {
   logoUrl?: string;
 } | null {
   try {
-    // Method 1: Find ANY company link in the profile header area
+    // Method 1: Find company link in the experience/position section at the top
     const topSection = document.querySelector('.ph5, .pv-top-card, .scaffold-finite-scroll');
     const searchRoot = (topSection as HTMLElement) || document;
 
-    const companyLinks = searchRoot.querySelectorAll('a[href*="/company/"]');
-    for (const link of companyLinks) {
-      if (link.closest('.pv-browsemap-section, footer, .feed-shared-control-menu')) continue;
+    // Only look at links in the top card / profile header area
+    const headerLinks = searchRoot.querySelectorAll('a[href*="/company/"]');
+    for (const link of headerLinks) {
+      // Skip links in unrelated sections
+      if (link.closest('.pv-browsemap-section, footer, .feed-shared-control-menu, .discover-entity-type-card')) continue;
+      // Only accept if the link is in the experience/position section
+      const section = link.closest('.pv-text-details__right-panel, .pv-text-details, .ph5');
+      if (!section) continue;
+
       const href = link.getAttribute('href') || '';
       const match = href.match(/\/company\/([^/?]+)/);
       const linkedinUrl = match ? `https://www.linkedin.com/company/${match[1]}/` : undefined;
       const name = link.textContent?.trim() || '';
-      if (name && name.length > 1 && name.length < 100 && !/^\d|\bfollowers?\b|\bemployees?\b/i.test(name)) {
-        console.log('[Scraper] Found company from link:', name);
+      if (name && name.length > 1 && name.length < 100 && !/^\d|\bfollowers?\b|\bemployees?\b|\bconnections\b/i.test(name)) {
+        console.log('[Scraper] Found company from header link:', name);
         return { name, linkedinUrl };
       }
     }

@@ -944,10 +944,10 @@ export default defineContentScript({
         values.forEach((val) => {
           const item = document.createElement('div');
           item.className = 'twenty-search-result';
-          const label = typeof val === 'string' ? val : val.name;
+          const label = typeof val === 'string' ? val : val.label;
           item.innerHTML = `<div class="twenty-search-result-name">${label}</div>`;
           item.addEventListener('click', () => {
-            handleFieldUpdate(editingField, typeof val === 'string' ? val : val.id);
+            handleFieldUpdate(editingField, typeof val === 'string' ? val : val.value);
           });
           resultsDiv.appendChild(item);
         });

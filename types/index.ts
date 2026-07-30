@@ -103,6 +103,8 @@ export type MessageType =
   | 'TEST_CONNECTION'
   | 'GET_RECENT_CAPTURES'
   | 'GET_FIELD_CONFIG'
+  | 'GET_ALL_FIELDS'
+  | 'SAVE_SELECTED_FIELDS'
   | 'SCRAPE_PAGE';
 
 export type ExtensionMessage = {

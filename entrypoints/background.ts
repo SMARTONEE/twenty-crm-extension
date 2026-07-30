@@ -1,5 +1,5 @@
 import { TwentyApiClient } from '../utils/twenty-api';
-import { getSettings, saveSettings, addToRecentCaptures, getRecentCaptures, getStoredToken, storeToken, clearStoredToken, getSelectedFields } from '../utils/storage';
+import { getSettings, saveSettings, addToRecentCaptures, getRecentCaptures, getStoredToken, storeToken, clearStoredToken, getSelectedFields, setSelectedFields } from '../utils/storage';
 import type { ExtensionMessage, ExtensionResponse, LinkedInProfileData, LinkedInCompanyData } from '../types';
 
 // Cache for API client
@@ -379,6 +379,27 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionRespon
           success: true,
           data: { fields: filtered, values },
         };
+      }
+
+      case 'GET_ALL_FIELDS': {
+        // Return ALL field definitions + currently selected ones
+        const allFields = [
+          { name: 'leadStatus', label: 'Lead Status', type: 'SELECT' },
+          { name: 'source', label: 'Source', type: 'SELECT' },
+          { name: 'approachType', label: 'Approach Type', type: 'SELECT' },
+          { name: 'campaignStatus', label: 'Campaign Status', type: 'SELECT' },
+          { name: 'enrichmentStatus', label: 'Enrichment Status', type: 'SELECT' },
+          { name: 'ecosystemId', label: 'Ecosystem', type: 'SELECT' },
+          { name: 'openToWork', label: 'Open To Work', type: 'BOOLEAN' },
+        ];
+        const selected = await getSelectedFields();
+        return { success: true, data: { fields: allFields, selected } };
+      }
+
+      case 'SAVE_SELECTED_FIELDS': {
+        const { fields } = message.payload as { fields: string[] };
+        await setSelectedFields(fields);
+        return { success: true };
       }
       
       case 'SEARCH_RECORDS': {

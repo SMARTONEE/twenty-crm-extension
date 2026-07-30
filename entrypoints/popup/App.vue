@@ -50,6 +50,7 @@ const statusClass = computed(() => {
 onMounted(async () => {
   await loadSettings();
   await loadRecentCaptures();
+  await loadFields();
 });
 
 async function loadSettings() {
@@ -177,6 +178,35 @@ function formatDate(timestamp: number): string {
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   return date.toLocaleDateString();
 }
+
+// Field selection
+const availableFields = ref<Array<{ name: string; label: string; type: string }>>([]);
+const selectedFields = ref<string[]>([]);
+
+async function loadFields() {
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: 'GET_ALL_FIELDS',
+    }) as ExtensionResponse<{ fields: Array<{ name: string; label: string; type: string }>; selected: string[] }>;
+    if (response.success && response.data) {
+      availableFields.value = response.data.fields;
+      selectedFields.value = response.data.selected;
+    }
+  } catch (e) { console.error('Load fields error:', e); }
+}
+
+async function toggleField(fieldName: string) {
+  const idx = selectedFields.value.indexOf(fieldName);
+  if (idx >= 0) {
+    selectedFields.value.splice(idx, 1);
+  } else {
+    selectedFields.value.push(fieldName);
+  }
+  await browser.runtime.sendMessage({
+    type: 'SAVE_SELECTED_FIELDS',
+    payload: { fields: [...selectedFields.value] },
+  });
+}
 </script>
 
 <template>
@@ -255,6 +285,26 @@ function formatDate(timestamp: number): string {
         <button class="btn btn--primary" @click="openTwenty">
           Open Twenty →
         </button>
+      </section>
+
+      <!-- Field Selection -->
+      <section v-if="isConfigured && hasToken" class="section">
+        <h2 class="section__title">Fields to edit on LinkedIn</h2>
+        <div class="fields-grid">
+          <label 
+            v-for="field in availableFields" 
+            :key="field.name" 
+            class="field-checkbox"
+          >
+            <input 
+              type="checkbox" 
+              :checked="selectedFields.includes(field.name)"
+              @change="toggleField(field.name)"
+            />
+            <span>{{ field.label }}</span>
+          </label>
+        </div>
+        <p v-if="availableFields.length === 0" class="hint" style="margin-top:0">Open a Twenty tab first to load fields.</p>
       </section>
 
       <!-- Recent Captures -->
@@ -485,6 +535,34 @@ function formatDate(timestamp: number): string {
 
 .btn--secondary:hover:not(:disabled) {
   background: #d1d5db;
+}
+
+.fields-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.field-checkbox:hover {
+  border-color: #6366f1;
+  background: #f5f3ff;
+}
+
+.field-checkbox input {
+  accent-color: #6366f1;
 }
 
 .message {

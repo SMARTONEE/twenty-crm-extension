@@ -4,7 +4,7 @@ import type { FieldDefinition } from './fields-config';
 
 // Define storage items
 export const twentyUrlStorage = storage.defineItem<string>('sync:twentyUrl', {
-  fallback: 'https://crm.southconnect.io',
+  fallback: '',
 });
 
 export const authTokenStorage = storage.defineItem<string>('local:authToken', {

@@ -1,11 +1,18 @@
-export default defineContentScript({
-  matches: ['https://crm.southconnect.io/*'],
+const TWENTY_TOKEN_KEY='tokenPairState';
+  matches: ['*://*/*'],
   runAt: 'document_idle',
 
-  main() {
+  async main() {
+    // Only run on the user's Twenty instance
+    const settings = await browser.storage.sync.get('twentyUrl');
+    const twentyUrl = settings.twentyUrl || '';
+    if (!twentyUrl || !window.location.href.startsWith(twentyUrl)) {
+      return;
+    }
+
     console.log('[Twenty Content] Loaded on', window.location.href);
 
-    const TWENTY_TOKEN_KEY = 'tokenPairState';
+    const TWENTY_TOKEN_KEY='tokenPairState';
     let lastSentToken: string | null = null;
 
     // Read token from localStorage
@@ -36,7 +43,6 @@ export default defineContentScript({
       }).then(() => {
         console.log('[Twenty Content] Token sent to background');
       }).catch(() => {
-        // Background might not be ready — that's OK, we'll retry
         console.log('[Twenty Content] Failed to send token, will retry');
       });
     };
@@ -45,7 +51,7 @@ export default defineContentScript({
     const checkAndSendToken = () => {
       const token = getTokenFromLocalStorage();
       if (token && token !== lastSentToken) {
-        console.log('[Twenty Content] Token found (new or changed), sending to background');
+        console.log('[Twenty Content] Token found, sending to background');
         lastSentToken = token;
         sendTokenToBackground(token);
       }
@@ -54,7 +60,7 @@ export default defineContentScript({
     // Initial check
     checkAndSendToken();
 
-    // Poll for token changes every 2 seconds (handles login after page load)
+    // Poll every 2s
     const pollInterval = setInterval(checkAndSendToken, 2000);
 
     // Listen for token requests from background
@@ -62,15 +68,12 @@ export default defineContentScript({
       if (message.type === 'GET_TOKEN_FROM_PAGE') {
         const freshToken = getTokenFromLocalStorage();
         console.log('[Twenty Content] Token requested, found:', !!freshToken);
-        if (freshToken) {
-          lastSentToken = freshToken;
-        }
+        if (freshToken) lastSentToken = freshToken;
         sendResponse({ success: true, data: { token: freshToken } });
         return false;
       }
     });
 
-    // Cleanup on page unload
     window.addEventListener('beforeunload', () => {
       clearInterval(pollInterval);
     });

@@ -353,7 +353,10 @@ export default defineContentScript({
     // Field editor state
     let showFieldEditor = false;
     let editingField: 'leadStatus' | 'ecosystem' | null = null;
-    const LEAD_STATUS_VALUES = ['COLD', 'WARM', 'HOT', 'CUSTOMER', 'NOT_A_LEAD'];
+    const LEAD_STATUS_VALUES = [
+      'BACKLOG', 'PG', 'APPROCHED', 'RESPONDING', 'INTERESTED',
+      'MEETING_BOOKED', 'LOST', 'NOT_THE_GOOD_TIME',
+    ];
     const ECOSYSTEMS = [
       { id: 'tech-saas', name: 'Tech / SaaS' },
       { id: 'service', name: 'Service' },

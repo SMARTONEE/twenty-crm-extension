@@ -104,6 +104,25 @@ const FLOATING_BUTTON_STYLES = `
   .twenty-menu-btn:hover {
     filter: brightness(0.9);
   }
+
+  .twenty-field-pill {
+    display: flex;
+    align-items: center;
+    padding: 4px 10px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+
+  .twenty-field-pill:hover {
+    background: rgba(255,255,255,0.25);
+  }
   
   .twenty-capture-icon {
     width: 18px;
@@ -733,7 +752,7 @@ export default defineContentScript({
     }
 
     // Open field editor for a specific field
-    function openFieldEditor(field: 'leadStatus' | 'ecosystem') {
+    function openFieldEditor(field: string) {
       editingField = field;
       showFieldEditor = true;
       showMenuDropdown = false;
@@ -803,6 +822,21 @@ export default defineContentScript({
       btn.innerHTML = `${getButtonIcon()}<span>${getButtonText()}</span>`;
       btn.addEventListener('click', handleClick);
       btnGroup.appendChild(btn);
+
+      // Show field edit pills directly when contact exists (no extra click)
+      if (state.status === 'exists' && availableFields.length > 0) {
+        for (const field of availableFields) {
+          const pill = document.createElement('button');
+          pill.className = 'twenty-field-pill';
+          pill.textContent = field.label;
+          pill.title = 'Edit ' + field.label;
+          pill.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openFieldEditor(field.name);
+          });
+          btnGroup.appendChild(pill);
+        }
+      }
       
       // Menu button
       if (hasMenu) {

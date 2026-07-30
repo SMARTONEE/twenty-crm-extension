@@ -5,7 +5,7 @@ export default defineContentScript({
   main() {
     console.log('[Twenty Content] Loaded on', window.location.href);
 
-    const TWENTY_TOKEN_KEY = '***';
+    const TWENTY_TOKEN_KEY = 'tokenPairState';
 
     // Read token from localStorage
     const getTokenFromLocalStorage = (): string | null => {

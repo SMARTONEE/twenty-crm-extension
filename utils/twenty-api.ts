@@ -769,7 +769,7 @@ export class TwentyApiClient {
 // Helper to extract token from localStorage (Twenty v2.25+ — PR #21507)
 // Twenty now stores the token pair in localStorage under key 'TOKEN_PAIR_LOCAL_STORAGE_KEY'
 // instead of a cookie.
-const TOKEN_PAIR_LOCAL_STORAGE_KEY = '***';
+const TOKEN_PAIR_LOCAL_STORAGE_KEY='tokenPairState';
 
 export function extractTokenFromLocalStorage(): string | null {
   try {

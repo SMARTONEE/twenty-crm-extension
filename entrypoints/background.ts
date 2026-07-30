@@ -70,7 +70,7 @@ async function queryTwentyTabForToken(): Promise<string | null> {
         const results = await browser.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => {
-            const KEY = '***';
+            const KEY = 'tokenPairState';
             try {
               const raw = localStorage.getItem(KEY);
               if (!raw) return null;

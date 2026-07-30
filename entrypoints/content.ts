@@ -906,8 +906,8 @@ export default defineContentScript({
       const wrapper = document.createElement('div');
       wrapper.className = 'twenty-capture-container';
       
-      // Button group - show menu for 'ready' (link to existing) and 'exists' (update from LinkedIn)
-      const hasMenu = state.status === 'ready' || state.status === 'exists';
+      // Button group - show menu only for 'ready' (link to existing)
+      const hasMenu = state.status === 'ready';
       const btnGroup = document.createElement('div');
       btnGroup.className = `twenty-btn-group${hasMenu ? ' has-menu' : ''}`;
       
@@ -935,6 +935,15 @@ export default defineContentScript({
         const fieldList = document.createElement('div');
         fieldList.className = 'twenty-field-list';
 
+        // Update from LinkedIn option at top
+        const updateRow = document.createElement('button');
+        updateRow.className = 'twenty-field-row';
+        updateRow.style.color = '#3b82f6';
+        updateRow.style.fontWeight = '600';
+        updateRow.addEventListener('click', () => handleMenuOption('update'));
+        updateRow.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg><span>Update from LinkedIn</span><span style="margin-left:auto;color:#9ca3af;font-size:11px">›</span>';
+        fieldList.appendChild(updateRow);
+
         for (const field of availableFields) {
           const row = document.createElement('button');
           row.className = 'twenty-field-row';
@@ -946,34 +955,12 @@ export default defineContentScript({
         wrapper.appendChild(fieldList);
       }
       
-      // Menu dropdown
+      // Menu dropdown (only for 'ready' state now — link to existing)
       if (showMenuDropdown) {
         const dropdown = document.createElement('div');
         dropdown.className = 'twenty-menu-dropdown';
         
-        if (state.status === 'exists') {
-          // Update option when record exists
-          const updateItem = document.createElement('button');
-          updateItem.className = 'twenty-menu-item';
-          updateItem.innerHTML = `${ICONS.refresh}<span>Update from LinkedIn</span>`;
-          updateItem.addEventListener('click', () => handleMenuOption('update'));
-          dropdown.appendChild(updateItem);
-
-          // Dynamically add field editor items based on user preferences
-          for (const field of availableFields) {
-            const item = document.createElement('button');
-            item.className = 'twenty-menu-item';
-            const icon = field.type === 'BOOLEAN'
-              ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
-              : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
-            item.innerHTML = `${icon}<span>${field.label}</span>`;
-            item.addEventListener('click', () => openFieldEditor(field.name));
-            dropdown.appendChild(item);
-          }
-        }
-        
         if (state.status === 'ready') {
-          // Link to existing option when ready to add
           const linkItem = document.createElement('button');
           linkItem.className = 'twenty-menu-item';
           linkItem.innerHTML = `${ICONS.search}<span>Link to existing contact</span>`;

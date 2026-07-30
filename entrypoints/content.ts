@@ -123,6 +123,48 @@ const FLOATING_BUTTON_STYLES = `
   .twenty-field-pill:hover {
     background: rgba(255,255,255,0.25);
   }
+
+  .twenty-field-list {
+    margin-top: 8px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    overflow: hidden;
+    min-width: 160px;
+  }
+
+  .twenty-field-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.15s;
+    font-size: 13px;
+  }
+
+  .twenty-field-row:last-child {
+    border-bottom: none;
+  }
+
+  .twenty-field-row:hover {
+    background: #f9fafb;
+  }
+
+  .twenty-field-label {
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .twenty-field-value {
+    color: #374151;
+    font-size: 12px;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   
   .twenty-capture-icon {
     width: 18px;
@@ -849,6 +891,32 @@ export default defineContentScript({
       }
       
       wrapper.appendChild(btnGroup);
+
+      // Field list panel below the button (when contact exists)
+      if (state.status === 'exists' && availableFields.length > 0) {
+        const fieldList = document.createElement('div');
+        fieldList.className = 'twenty-field-list';
+
+        for (const field of availableFields) {
+          const row = document.createElement('div');
+          row.className = 'twenty-field-row';
+          row.addEventListener('click', () => openFieldEditor(field.name));
+
+          const labelEl = document.createElement('span');
+          labelEl.className = 'twenty-field-label';
+          labelEl.textContent = field.label;
+
+          const valueEl = document.createElement('span');
+          valueEl.className = 'twenty-field-value';
+          valueEl.textContent = '…';
+
+          row.appendChild(labelEl);
+          row.appendChild(valueEl);
+          fieldList.appendChild(row);
+        }
+
+        wrapper.appendChild(fieldList);
+      }
       
       // Menu dropdown
       if (showMenuDropdown) {

@@ -125,23 +125,27 @@ const FLOATING_BUTTON_STYLES = `
   }
 
   .twenty-field-list {
-    margin-top: 8px;
+    margin-top: 6px;
     background: white;
     border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     overflow: hidden;
-    min-width: 160px;
   }
 
   .twenty-field-row {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
-    cursor: pointer;
+    align-items: center;
+    width: 100%;
+    padding: 8px 14px;
+    border: none;
     border-bottom: 1px solid #f3f4f6;
-    transition: background 0.15s;
+    background: white;
+    color: #374151;
     font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
   }
 
   .twenty-field-row:last-child {
@@ -149,7 +153,7 @@ const FLOATING_BUTTON_STYLES = `
   }
 
   .twenty-field-row:hover {
-    background: #f9fafb;
+    background: #f3f4f6;
   }
 
   .twenty-field-label {
@@ -876,6 +880,22 @@ export default defineContentScript({
       }
       
       wrapper.appendChild(btnGroup);
+
+      // Show editable fields directly below when contact exists
+      if (state.status === 'exists' && availableFields.length > 0) {
+        const fieldList = document.createElement('div');
+        fieldList.className = 'twenty-field-list';
+
+        for (const field of availableFields) {
+          const row = document.createElement('button');
+          row.className = 'twenty-field-row';
+          row.addEventListener('click', () => openFieldEditor(field.name));
+          row.innerHTML = `<span>${field.label}</span><span style="color:#9ca3af;font-size:11px">›</span>`;
+          fieldList.appendChild(row);
+        }
+
+        wrapper.appendChild(fieldList);
+      }
       
       // Menu dropdown
       if (showMenuDropdown) {

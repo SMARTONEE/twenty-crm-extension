@@ -79,98 +79,55 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
     const linkedinUrl = window.location.href.split('?')[0];
     console.log('[Scraper] Starting person profile scrape on:', linkedinUrl);
 
-    // --- Strategy 1: JSON-LD ---
+    // --- Strategy 1: document.title (MOST RELIABLE) ---
+    // LinkedIn always sets title to "Name | LinkedIn"
+    let fullName = '';
+    const title = document.title || '';
+    const titleParts = title.split('|')[0]?.trim() || '';
+    const cleaned = titleParts.replace(/\(\d+\)\s*$/,'').trim(); // Remove "(123)" follower count
+    if (cleaned && cleaned.length > 1 && cleaned !== 'LinkedIn') {
+      fullName = cleaned;
+      console.log('[Scraper] Found name via document.title:', fullName);
+    }
+
+    // --- Strategy 2: JSON-LD ---
     const jsonLD = tryJsonLD();
     console.log('[Scraper] JSON-LD data:', jsonLD);
+    if (!fullName && jsonLD?.name && jsonLD.name.length > 1) {
+      fullName = jsonLD.name;
+      console.log('[Scraper] Found name via JSON-LD:', fullName);
+    }
 
-    // --- Strategy 2: Meta tags ---
+    // --- Strategy 3: Meta tags ---
     const meta = tryMetaTags();
     console.log('[Scraper] Meta tag data:', meta);
+    if (!fullName && meta?.name && meta.name.length > 1) {
+      const metaParts = meta.name.split('|')[0]?.trim() || '';
+      if (metaParts && metaParts !== 'LinkedIn') {
+        fullName = metaParts;
+        console.log('[Scraper] Found name via meta og:title:', fullName);
+      }
+    }
 
-    // --- Strategy 3: DOM selectors (tiered fallbacks) ---
-    // Name selectors — LinkedIn changes these constantly, so cast a wide net
-    const nameSelectors = [
-      'h1.text-heading-xlarge',
-      'h1.inline.t-24',
-      'h1.t-24.v-align-middle',
-      '.pv-top-card h1',
-      'h1[class*="break-words"]',
-      '.ph5 h1',
-      '.pv-text-details__left-panel h1',
-      '[data-generated-suggestion-target] h1',
-      'h1',  // Last resort — will be validated
-    ];
-
+    // --- Strategy 4: DOM selectors (last resort) ---
     let nameElement: Element | null = null;
-    for (const sel of nameSelectors) {
-      const el = document.querySelector(sel);
-      const text = el?.textContent?.trim() || '';
-      if (text && isValidProfileName(text)) {
-        nameElement = el;
-        console.log('[Scraper] Found name via selector:', sel, '→', text);
-        break;
-      }
-    }
-
-    // Fallback: get first meaningful h1 on page
-    if (!nameElement) {
-      const allH1s = document.querySelectorAll('h1');
-      for (const h1 of allH1s) {
-        const text = h1.textContent?.trim() || '';
-        if (isValidProfileName(text) && h1.offsetParent !== null) {
-          nameElement = h1;
-          console.log('[Scraper] Found name via h1 fallback:', text);
-          break;
-        }
-      }
-    }
-
-    // Fallback: try h2 elements (LinkedIn sometimes uses h2 for names now)
-    if (!nameElement) {
-      const allH2s = document.querySelectorAll('h2');
-      for (const h2 of allH2s) {
-        const text = h2.textContent?.trim() || '';
-        if (isValidProfileName(text) && h2.offsetParent !== null) {
-          nameElement = h2;
-          console.log('[Scraper] Found name via h2 fallback:', text);
-          break;
-        }
-      }
-    }
-
-    // Fallback: document.title (LinkedIn titles are "Name | LinkedIn")
-    let titleName = '';
-    if (!nameElement) {
-      const title = document.title || '';
-      const titleParts = title.split('|')[0]?.trim() || '';
-      const cleaned = titleParts.replace(/\(\d+\)\s*$/,'').trim(); // Remove "(123)" follower count
-      if (isValidProfileName(cleaned)) {
-        titleName = cleaned;
-        console.log('[Scraper] Found name via document.title:', titleName);
-      }
-    }
-
-    // Fallback: any visible, prominent heading-like element at the top of the page
-    if (!nameElement) {
-      const candidates = document.querySelectorAll(
-        '[class*="text-heading"], [class*="t-24"], [class*="t-32"], [class*="v-align-middle"], header h2, .pv-top-card h2, [class*="inline"][class*="t-"]'
-      );
-      for (const el of candidates) {
-        const text = el.textContent?.trim() || '';
-        if (isValidProfileName(text) && el.offsetParent !== null) {
+    if (!fullName) {
+      const nameSelectors = [
+        'h1.text-heading-xlarge', 'h1.inline.t-24', 'h1.t-24.v-align-middle',
+        '.pv-top-card h1', 'h1[class*="break-words"]', '.ph5 h1',
+        '.pv-text-details__left-panel h1', 'h1',
+      ];
+      for (const sel of nameSelectors) {
+        const el = document.querySelector(sel);
+        const text = el?.textContent?.trim() || '';
+        if (text && text.length > 1 && !/^\d+$/.test(text) && text !== 'LinkedIn') {
           nameElement = el;
-          console.log('[Scraper] Found name via heading fallback:', text);
+          fullName = text;
+          console.log('[Scraper] Found name via selector:', sel, '→', text);
           break;
         }
       }
     }
-
-    // If all DOM methods fail, try JSON-LD, meta, and document.title
-    const candidateName = nameElement?.textContent?.trim() || '';
-    const fullName = isValidProfileName(candidateName) ? candidateName
-      : (jsonLD?.name && isValidProfileName(jsonLD.name)) ? jsonLD.name
-      : (meta?.name && isValidProfileName(meta.name)) ? meta.name
-      : titleName;
 
     if (!fullName) {
       console.warn('[Scraper] Could not find name — all strategies exhausted');

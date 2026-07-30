@@ -864,21 +864,6 @@ export default defineContentScript({
       btn.innerHTML = `${getButtonIcon()}<span>${getButtonText()}</span>`;
       btn.addEventListener('click', handleClick);
       btnGroup.appendChild(btn);
-
-      // Show field edit pills directly when contact exists (no extra click)
-      if (state.status === 'exists' && availableFields.length > 0) {
-        for (const field of availableFields) {
-          const pill = document.createElement('button');
-          pill.className = 'twenty-field-pill';
-          pill.textContent = field.label;
-          pill.title = 'Edit ' + field.label;
-          pill.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openFieldEditor(field.name);
-          });
-          btnGroup.appendChild(pill);
-        }
-      }
       
       // Menu button
       if (hasMenu) {
@@ -891,32 +876,6 @@ export default defineContentScript({
       }
       
       wrapper.appendChild(btnGroup);
-
-      // Field list panel below the button (when contact exists)
-      if (state.status === 'exists' && availableFields.length > 0) {
-        const fieldList = document.createElement('div');
-        fieldList.className = 'twenty-field-list';
-
-        for (const field of availableFields) {
-          const row = document.createElement('div');
-          row.className = 'twenty-field-row';
-          row.addEventListener('click', () => openFieldEditor(field.name));
-
-          const labelEl = document.createElement('span');
-          labelEl.className = 'twenty-field-label';
-          labelEl.textContent = field.label;
-
-          const valueEl = document.createElement('span');
-          valueEl.className = 'twenty-field-value';
-          valueEl.textContent = '…';
-
-          row.appendChild(labelEl);
-          row.appendChild(valueEl);
-          fieldList.appendChild(row);
-        }
-
-        wrapper.appendChild(fieldList);
-      }
       
       // Menu dropdown
       if (showMenuDropdown) {

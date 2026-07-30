@@ -11,7 +11,6 @@ const FLOATING_BUTTON_STYLES = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     cursor: grab;
     user-select: none;
-    position: relative;
   }
 
   .twenty-capture-container.dragging {
@@ -266,10 +265,7 @@ const FLOATING_BUTTON_STYLES = `
 
   /* Search Panel */
   .twenty-search-panel {
-    position: absolute;
-    top: 0;
-    right: 100%;
-    margin-right: 12px;
+    position: fixed;
     width: 220px;
     background: white;
     border-radius: 12px;
@@ -1038,10 +1034,18 @@ export default defineContentScript({
       if (showFieldEditor && editingField) {
         const editorPanel = document.createElement('div');
         editorPanel.className = 'twenty-search-panel';
+
+        // Position panel to the left of the container
+        const containerRect = container?.getBoundingClientRect();
+        if (containerRect) {
+          editorPanel.style.top = `${containerRect.top}px`;
+          editorPanel.style.right = `${window.innerWidth - containerRect.left + 12}px`;
+        }
         
         const header = document.createElement('div');
         header.className = 'twenty-search-header';
-        header.innerHTML = `<span class="twenty-search-title">Set ${editingField === 'leadStatus' ? 'Lead Status' : 'Ecosystem'}</span>`;
+        const fieldLabel = availableFields.find(f => f.name === editingField)?.label || editingField;
+        header.innerHTML = `<span class="twenty-search-title">${fieldLabel}</span>`;
         const closeBtn = document.createElement('button');
         closeBtn.className = 'twenty-search-close';
         closeBtn.innerHTML = ICONS.close;

@@ -2,12 +2,8 @@ import type { LinkedInProfileData, LinkedInCompanyData, LinkedInData } from '../
 
 // Detect page type from URL
 export function getLinkedInPageType(url: string): 'person' | 'company' | null {
-  if (url.includes('linkedin.com/in/')) {
-    return 'person';
-  }
-  if (url.includes('linkedin.com/company/')) {
-    return 'company';
-  }
+  if (url.includes('linkedin.com/in/')) return 'person';
+  if (url.includes('linkedin.com/company/')) return 'company';
   return null;
 }
 
@@ -15,10 +11,46 @@ export function getLinkedInPageType(url: string): 'person' | 'company' | null {
 export function getLinkedInIdentifier(url: string): string | null {
   const personMatch = url.match(/linkedin\.com\/in\/([^/?]+)/);
   if (personMatch) return personMatch[1];
-  
   const companyMatch = url.match(/linkedin\.com\/company\/([^/?]+)/);
   if (companyMatch) return companyMatch[1];
-  
+  return null;
+}
+
+// Try to extract data from LinkedIn's embedded JSON-LD / structured data
+function tryJsonLD(): { name?: string; headline?: string; image?: string } | null {
+  try {
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of scripts) {
+      const data = JSON.parse(script.textContent || '');
+      if (data['@type'] === 'Person') {
+        return {
+          name: data.name,
+          headline: data.jobTitle || data.description,
+          image: data.image,
+        };
+      }
+      if (data['@type'] === 'Organization') {
+        return { name: data.name };
+      }
+    }
+  } catch { /* ignore parse errors */ }
+  return null;
+}
+
+// Try to extract from Open Graph / meta tags
+function tryMetaTags(): { name?: string; headline?: string; image?: string; description?: string } | null {
+  const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+  const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute('content');
+  const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+
+  if (ogTitle) {
+    return {
+      name: ogTitle.split('|')[0]?.trim() || ogTitle,
+      headline: ogDesc?.split('|')[0]?.trim(),
+      image: ogImage || undefined,
+      description: ogDesc || undefined,
+    };
+  }
   return null;
 }
 
@@ -26,52 +58,122 @@ export function getLinkedInIdentifier(url: string): string | null {
 export function scrapePersonProfile(): LinkedInProfileData | null {
   try {
     const linkedinUrl = window.location.href.split('?')[0];
-    
-    // Get name - LinkedIn uses h1 for the profile name with various class combinations
-    // Try multiple selectors as LinkedIn frequently changes their DOM
-    const nameElement = 
-      document.querySelector('h1.text-heading-xlarge') ||  // Old format
-      document.querySelector('h1.inline.t-24') ||          // New format (2024+)
-      document.querySelector('h1.t-24.v-align-middle') ||  // Another variant
-      document.querySelector('.pv-top-card h1') ||         // Fallback: h1 in top card
-      document.querySelector('h1[class*="break-words"]');  // Generic fallback
-    
+    console.log('[Scraper] Starting person profile scrape on:', linkedinUrl);
+
+    // --- Strategy 1: JSON-LD ---
+    const jsonLD = tryJsonLD();
+    console.log('[Scraper] JSON-LD data:', jsonLD);
+
+    // --- Strategy 2: Meta tags ---
+    const meta = tryMetaTags();
+    console.log('[Scraper] Meta tag data:', meta);
+
+    // --- Strategy 3: DOM selectors (tiered fallbacks) ---
+    // Name selectors — LinkedIn changes these constantly, so cast a wide net
+    const nameSelectors = [
+      'h1',
+      'h1.text-heading-xlarge',
+      'h1.inline.t-24',
+      'h1.t-24.v-align-middle',
+      '.pv-top-card h1',
+      'h1[class*="break-words"]',
+      '.ph5 h1',
+      '.pv-text-details__left-panel h1',
+      '[data-generated-suggestion-target] h1',
+    ];
+
+    let nameElement: Element | null = null;
+    for (const sel of nameSelectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent?.trim() && el.textContent.trim().length > 1) {
+        nameElement = el;
+        console.log('[Scraper] Found name via selector:', sel, '→', el.textContent.trim());
+        break;
+      }
+    }
+
+    // Fallback: get first meaningful h1 on page
     if (!nameElement) {
-      console.warn('Could not find name element - tried multiple selectors');
+      const allH1s = document.querySelectorAll('h1');
+      for (const h1 of allH1s) {
+        const text = h1.textContent?.trim() || '';
+        // Skip navigation/hidden h1s, LinkedIn header text
+        if (text.length > 1 && !text.includes('LinkedIn') && h1.offsetParent !== null) {
+          nameElement = h1;
+          console.log('[Scraper] Found name via h1 fallback:', text);
+          break;
+        }
+      }
+    }
+
+    // If all DOM methods fail, try JSON-LD and meta
+    const fullName = nameElement?.textContent?.trim()
+      || jsonLD?.name
+      || meta?.name
+      || '';
+
+    if (!fullName) {
+      console.warn('[Scraper] Could not find name — all strategies exhausted');
       return null;
     }
-    
-    const fullName = nameElement.textContent?.trim() || '';
-    console.log('Scraped name:', fullName);
+
+    console.log('[Scraper] Resolved full name:', fullName);
     const nameParts = parseFullName(fullName);
-    
-    // Get headline/title - div with text-body-medium class that has job title
-    // Use data-generated-suggestion-target attribute as it's more reliable
-    const headlineElement = 
-      document.querySelector('div[data-generated-suggestion-target]') ||
-      document.querySelector('div.text-body-medium.break-words');
-    const headline = headlineElement?.textContent?.trim() || '';
-    console.log('Scraped headline:', headline);
-    
-    // Get current company info
+
+    // Headline selectors
+    const headlineSelectors = [
+      'div[data-generated-suggestion-target]',
+      'div.text-body-medium.break-words',
+      '.pv-text-details__left-panel div.text-body-medium',
+      '.ph5 div.text-body-medium',
+      '[class*="text-body-medium"][class*="break-words"]',
+    ];
+
+    let headline = '';
+    for (const sel of headlineSelectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent?.trim() && !el.textContent.includes(fullName)) {
+        headline = el.textContent.trim();
+        console.log('[Scraper] Found headline via selector:', sel, '→', headline);
+        break;
+      }
+    }
+
+    if (!headline) {
+      headline = jsonLD?.headline || meta?.headline || '';
+    }
+
+    // Company info
     const companyData = scrapeCurrentCompanyFromProfile();
     const currentCompany = companyData?.name || extractCompanyFromHeadline(headline);
-    console.log('Scraped company data:', companyData);
-    console.log('Current company:', currentCompany);
-    
-    // Get profile image - try to get high quality version
-    const profileImageUrl = scrapeProfileImage();
-    
-    // Get location - span with location info
-    const locationElement = 
-      document.querySelector('span.text-body-small.inline.t-black--light.break-words') ||
-      document.querySelector('.text-body-small.inline.t-black--light.break-words') ||
-      document.querySelector('.pv-top-card--list-bullet li:last-child');
-    const location = locationElement?.textContent?.trim() || '';
-    console.log('Scraped location:', location);
-    
-    const result = {
-      type: 'person' as const,
+
+    // Profile image
+    const profileImageUrl = scrapeProfileImage()
+      || jsonLD?.image
+      || meta?.image
+      || '';
+
+    // Location
+    const locationSelectors = [
+      'span.text-body-small.inline.t-black--light.break-words',
+      '.text-body-small.inline.t-black--light.break-words',
+      '.pv-top-card--list-bullet li:last-child',
+      '.pv-text-details__right-panel .text-body-small',
+      '.ph5 .text-body-small.inline',
+    ];
+
+    let location = '';
+    for (const sel of locationSelectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent?.trim()) {
+        location = el.textContent.trim();
+        console.log('[Scraper] Found location via selector:', sel, '→', location);
+        break;
+      }
+    }
+
+    const result: LinkedInProfileData = {
+      type: 'person',
       linkedinUrl,
       firstName: nameParts.firstName,
       lastName: nameParts.lastName,
@@ -81,109 +183,129 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       profileImageUrl: profileImageUrl || undefined,
       location: location || undefined,
     };
-    
-    console.log('Scraped profile data:', {
-      fullName,
-      firstName: result.firstName,
-      lastName: result.lastName,
+
+    console.log('[Scraper] Final profile data:', {
+      name: `${result.firstName} ${result.lastName}`,
       headline: result.headline,
+      company: result.currentCompany,
     });
-    
+
     return result;
   } catch (error) {
-    console.error('Error scraping person profile:', error);
+    console.error('[Scraper] Error scraping person profile:', error);
     return null;
   }
 }
 
 // Scrape profile image
 function scrapeProfileImage(): string {
-  // Try multiple selectors - LinkedIn changes DOM frequently
   const selectors = [
-    '.pv-top-card-profile-picture__container img',  // New format with button wrapper
-    '.pv-top-card-profile-picture__image',          // Old format
+    '.pv-top-card-profile-picture__container img',
+    '.pv-top-card-profile-picture__image',
     'img.profile-photo-edit__preview',
     '.pv-top-card__photo img',
-    'button[aria-label*="image"] img',              // Button with image label
-    '.EntityPhoto-circle-9 img',                    // Entity photo class
-    'img[title]',                                   // Fallback: img with title (usually name)
+    'button[aria-label*="image"] img',
+    'button[aria-label*="photo"] img',
+    '.EntityPhoto-circle-9 img',
+    'img.pv-top-card-profile-picture__image--show',
+    '.presence-entity__image',
+    'img[alt*="profile photo"]',
+    'img[alt*="Profile photo"]',
+    '.profile-photo img',
+    '.ivm-view-attr__img--centered',
+    // Broader catch — first non-icon, non-ghost img that looks like a profile pic
   ];
-  
+
   for (const selector of selectors) {
     const img = document.querySelector(selector) as HTMLImageElement;
-    if (img?.src && !img.src.includes('ghost') && img.src.includes('profile')) {
-      // Use the URL as-is - LinkedIn URLs have signed params that break if modified
-      console.log('Scraped profile image:', img.src);
-      return img.src;
+    if (img?.src && !img.src.includes('ghost') && !img.src.includes('company')) {
+      // Only accept reasonably-sized images (not tiny icons)
+      const w = img.naturalWidth || img.width || 0;
+      if (w === 0 || w >= 48) {
+        console.log('[Scraper] Found profile image via selector:', selector, img.src.substring(0, 80));
+        return img.src;
+      }
     }
   }
-  
+
   return '';
 }
 
 // Scrape company info from current profile page
-function scrapeCurrentCompanyFromProfile(): { name: string; linkedinUrl?: string; logoUrl?: string } | null {
+function scrapeCurrentCompanyFromProfile(): {
+  name: string;
+  linkedinUrl?: string;
+  logoUrl?: string;
+} | null {
   try {
-    // Best method: Find button with aria-label containing "Entreprise actuelle" or "Current company"
-    // This button contains company name, logo, and links to company page
-    const companyButton = 
-      document.querySelector('button[aria-label*="Entreprise actuelle"]') ||
-      document.querySelector('button[aria-label*="Current company"]') ||
-      document.querySelector('button[aria-label*="Empresa actual"]') ||  // Spanish
-      document.querySelector('button[aria-label*="Aktuelles Unternehmen"]');  // German
-    
-    if (companyButton) {
-      // Extract company name from aria-label (format: "Entreprise actuelle: CompanyName. ...")
-      const ariaLabel = companyButton.getAttribute('aria-label') || '';
-      const nameMatch = ariaLabel.match(/:\s*([^.]+)/);
-      const name = nameMatch ? nameMatch[1].trim() : '';
-      
-      // Get company logo URL
-      const logoImg = companyButton.querySelector('img');
-      const logoUrl = logoImg?.src || undefined;
-      
-      // Try to get company LinkedIn URL from nearby link or page navigation
-      // The button itself doesn't have the URL, but we can try to find it elsewhere
-      let linkedinUrl: string | undefined;
-      
-      if (name) {
-        console.log('Found company from button:', { name, logoUrl });
-        return { name, linkedinUrl, logoUrl };
+    // Method 1: Button with aria-label
+    const ariaLabels = [
+      'Entreprise actuelle',
+      'Current company',
+      'Empresa actual',
+      'Aktuelles Unternehmen',
+    ];
+    for (const label of ariaLabels) {
+      const btn = document.querySelector(`button[aria-label*="${label}"]`);
+      if (btn) {
+        const ariaLabel = btn.getAttribute('aria-label') || '';
+        const nameMatch = ariaLabel.match(/:\s*([^.]+)/);
+        const name = nameMatch ? nameMatch[1].trim() : '';
+        const logoImg = btn.querySelector('img');
+        const logoUrl = logoImg?.src || undefined;
+
+        if (name) {
+          console.log('[Scraper] Found company from button aria-label:', name);
+          return { name, logoUrl };
+        }
       }
     }
-    
-    // Fallback: Try to find company link in the experience section or top card
-    const companyLink = 
+
+    // Method 2: Find company link/span in experience section
+    const companyEl =
       document.querySelector('.pv-text-details__right-panel-item-text a[href*="/company/"]') ||
+      document.querySelector('.pv-text-details__right-panel-item a[href*="/company/"]') ||
       document.querySelector('a[data-field="experience_company_logo"]') ||
       document.querySelector('.experience-item a[href*="/company/"]');
-    
-    if (companyLink) {
-      const href = companyLink.getAttribute('href') || '';
+
+    if (companyEl) {
+      const href = companyEl.getAttribute('href') || '';
       const match = href.match(/\/company\/([^/?]+)/);
-      const linkedinUrl = match ? `https://www.linkedin.com/company/${match[1]}/` : undefined;
-      
-      const name = companyLink.textContent?.trim() || 
-        companyLink.closest('.pv-text-details__right-panel-item-text')?.textContent?.trim() ||
-        '';
-      
+      const linkedinUrl = match
+        ? `https://www.linkedin.com/company/${match[1]}/`
+        : undefined;
+
+      const name = companyEl.textContent?.trim() || '';
       if (name) {
+        console.log('[Scraper] Found company from link:', name);
         return { name, linkedinUrl };
       }
     }
-    
-    // Last fallback: just get company name without URL
-    const companyElement = 
-      document.querySelector('.pv-text-details__right-panel-item-text') ||
-      document.querySelector('[aria-label*="Current company"]');
-    
-    if (companyElement) {
-      return { name: companyElement.textContent?.trim() || '' };
+
+    // Method 3: Experience section list items
+    const expItems = document.querySelectorAll('.pvs-list__item--with-top-separator .t-bold span[aria-hidden="true"], .pvs-entity__sub-components span[aria-hidden="true"]');
+    for (const item of expItems) {
+      const text = item.textContent?.trim() || '';
+      // First meaningful text in experience section could be company name
+      if (text && text.length > 1 && !text.includes('·') && !text.includes('Full-time')) {
+        console.log('[Scraper] Found company from exp list:', text);
+        return { name: text };
+      }
     }
-    
+
+    // Method 4: Just try to get any visible company-like text near the headline
+    const rightPanel = document.querySelector('.pv-text-details__right-panel-item-text');
+    if (rightPanel) {
+      const text = rightPanel.textContent?.trim() || '';
+      if (text && text.length > 1) {
+        // Often contains "Company Name · City" or just "Company Name"
+        return { name: text.split('·')[0].trim() };
+      }
+    }
+
     return null;
   } catch (error) {
-    console.error('Error scraping company from profile:', error);
+    console.error('[Scraper] Error scraping company:', error);
     return null;
   }
 }
@@ -192,48 +314,75 @@ function scrapeCurrentCompanyFromProfile(): { name: string; linkedinUrl?: string
 export function scrapeCompanyPage(): LinkedInCompanyData | null {
   try {
     const linkedinUrl = window.location.href.split('?')[0];
-    
-    // Company name
-    const nameElement = 
-      document.querySelector('h1.org-top-card-summary__title') ||
-      document.querySelector('.org-top-card-summary-info-list__info-item') ||
-      document.querySelector('h1[title]');
-    
-    if (!nameElement) {
-      console.warn('Could not find company name element');
+    console.log('[Scraper] Starting company page scrape');
+
+    // Try JSON-LD first
+    const jsonLD = tryJsonLD();
+    const meta = tryMetaTags();
+
+    // Name selectors
+    const nameSelectors = [
+      'h1.org-top-card-summary__title',
+      '.org-top-card-summary-info-list__info-item',
+      'h1[title]',
+      'h1',
+    ];
+
+    let nameElement: Element | null = null;
+    for (const sel of nameSelectors) {
+      const el = document.querySelector(sel);
+      if (el && el.textContent?.trim()) {
+        nameElement = el;
+        break;
+      }
+    }
+
+    const name = nameElement?.textContent?.trim()
+      || jsonLD?.name
+      || meta?.name
+      || '';
+
+    if (!name) {
+      console.warn('[Scraper] Could not find company name');
       return null;
     }
-    
-    const name = nameElement.textContent?.trim() || '';
-    
+
     // Industry
-    const industryElement = document.querySelector('.org-top-card-summary-info-list__info-item');
-    const industry = industryElement?.textContent?.trim() || '';
-    
+    const industryEl = document.querySelector('.org-top-card-summary-info-list__info-item');
+    const industry = industryEl?.textContent?.trim() || '';
+
     // Employee count
-    const employeeElements = document.querySelectorAll('.org-top-card-summary-info-list__info-item');
+    const allInfoItems = document.querySelectorAll('.org-top-card-summary-info-list__info-item');
     let employeeCount = '';
-    employeeElements.forEach((el) => {
+    allInfoItems.forEach((el) => {
       const text = el.textContent || '';
-      if (text.includes('employees') || text.includes('employee')) {
+      if (/\d.*employees?/.test(text) || /\d.*employés?/.test(text)) {
         employeeCount = text.trim();
       }
     });
-    
-    // Website - look in the about section or sidebar
-    const websiteElement = 
+
+    // Website
+    const websiteEl =
       document.querySelector('a[data-control-name="top_card_link_website"]') ||
-      document.querySelector('.link-without-visited-state.org-top-card-primary-actions__action');
-    const website = websiteElement?.getAttribute('href') || '';
-    
+      document.querySelector('.link-without-visited-state.org-top-card-primary-actions__action') ||
+      document.querySelector('.org-top-card-primary-actions__action a');
+    const website = websiteEl?.getAttribute('href') || '';
+
     // Logo
-    const logoElement = document.querySelector('.org-top-card-primary-content__logo');
-    const logoUrl = logoElement?.getAttribute('src') || '';
-    
+    const logoEl =
+      document.querySelector('.org-top-card-primary-content__logo') ||
+      document.querySelector('.org-top-card-primary-content img');
+    const logoUrl = logoEl?.getAttribute('src') || '';
+
     // Description/tagline
-    const descElement = document.querySelector('.org-top-card-summary__tagline');
-    const description = descElement?.textContent?.trim() || '';
-    
+    const descEl =
+      document.querySelector('.org-top-card-summary__tagline') ||
+      document.querySelector('.org-top-card-summary__subtitle');
+    const description = descEl?.textContent?.trim()
+      || jsonLD?.description
+      || meta?.description
+      || '';
+
     return {
       type: 'company',
       linkedinUrl,
@@ -245,7 +394,7 @@ export function scrapeCompanyPage(): LinkedInCompanyData | null {
       description: description || undefined,
     };
   } catch (error) {
-    console.error('Error scraping company page:', error);
+    console.error('[Scraper] Error scraping company page:', error);
     return null;
   }
 }
@@ -253,59 +402,33 @@ export function scrapeCompanyPage(): LinkedInCompanyData | null {
 // Main scraper function that detects page type and scrapes accordingly
 export function scrapeCurrentPage(): LinkedInData | null {
   const pageType = getLinkedInPageType(window.location.href);
-  
-  if (pageType === 'person') {
-    return scrapePersonProfile();
-  }
-  
-  if (pageType === 'company') {
-    return scrapeCompanyPage();
-  }
-  
+  if (pageType === 'person') return scrapePersonProfile();
+  if (pageType === 'company') return scrapeCompanyPage();
   return null;
 }
 
 // Helper to parse full name into first and last name
 function parseFullName(fullName: string): { firstName: string; lastName: string } {
   const parts = fullName.trim().split(/\s+/);
-  
-  if (parts.length === 0) {
-    return { firstName: '', lastName: '' };
-  }
-  
-  if (parts.length === 1) {
-    return { firstName: parts[0], lastName: '' };
-  }
-  
-  // Handle cases like "John van der Berg" - take first as firstName, rest as lastName
-  const firstName = parts[0];
-  const lastName = parts.slice(1).join(' ');
-  
-  return { firstName, lastName };
+  if (parts.length === 0) return { firstName: '', lastName: '' };
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
 }
 
 // Try to extract company name from headline like "Software Engineer at Google"
 function extractCompanyFromHeadline(headline: string): string {
-  // Match various patterns: "at Company", "chez Company" (French), "@ Company", "for Company"
   const patterns = [
-    /\bat\s+(.+?)(?:\s*\||$)/i,           // English: "at Company"
-    /\bchez\s+(.+?)(?:\s*\||$)/i,         // French: "chez Company"
-    /\bbei\s+(.+?)(?:\s*\||$)/i,          // German: "bei Company"
-    /\b@\s*(.+?)(?:\s*\||$)/i,            // Symbol: "@ Company" or "@Company"
-    /\bfor\s+(.+?)(?:\s*\||$)/i,          // English: "for Company"
-    /\bà\s+(.+?)(?:\s*\||$)/i,            // French: "à Company"
-    /\ben\s+(.+?)(?:\s*\||$)/i,           // Spanish: "en Company"
+    /\bat\s+(.+?)(?:\s*\||$)/i,
+    /\bchez\s+(.+?)(?:\s*\||$)/i,
+    /\bbei\s+(.+?)(?:\s*\||$)/i,
+    /\b@\s*(.+?)(?:\s*\||$)/i,
+    /\bfor\s+(.+?)(?:\s*\||$)/i,
+    /\bà\s+(.+?)(?:\s*\||$)/i,
+    /\ben\s+(.+?)(?:\s*\||$)/i,
   ];
-  
   for (const pattern of patterns) {
     const match = headline.match(pattern);
-    if (match) {
-      const company = match[1].trim();
-      console.log('Extracted company from headline:', company, 'using pattern:', pattern);
-      return company;
-    }
+    if (match) return match[1].trim();
   }
-  
   return '';
 }
-

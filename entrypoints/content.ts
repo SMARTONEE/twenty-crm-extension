@@ -5,8 +5,9 @@ import type { CaptureState, LinkedInData, ExtensionResponse, TwentyPerson, Twent
 const FLOATING_BUTTON_STYLES = `
   .twenty-capture-container {
     position: fixed;
-    bottom: 24px;
-    left: 24px;
+    top: 50%;
+    right: 24px;
+    transform: translateY(-50%);
     z-index: 99999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   }
@@ -124,8 +125,9 @@ const FLOATING_BUTTON_STYLES = `
   
   .twenty-capture-toast {
     position: fixed;
-    bottom: 80px;
-    left: 24px;
+    top: 50%;
+    right: 80px;
+    transform: translateY(-50%);
     background: #1f2937;
     color: white;
     padding: 12px 20px;
@@ -149,9 +151,9 @@ const FLOATING_BUTTON_STYLES = `
   /* Menu Dropdown */
   .twenty-menu-dropdown {
     position: absolute;
-    bottom: 100%;
-    left: 0;
-    margin-bottom: 8px;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
     background: white;
     border-radius: 10px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -188,8 +190,9 @@ const FLOATING_BUTTON_STYLES = `
   /* Search Panel */
   .twenty-search-panel {
     position: fixed;
-    bottom: 80px;
-    left: 24px;
+    top: 50%;
+    right: 90px;
+    transform: translateY(-50%);
     width: 320px;
     background: white;
     border-radius: 12px;

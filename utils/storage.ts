@@ -27,7 +27,7 @@ export const lastCapturedStorage = storage.defineItem<Array<{
 
 // Store which fields the user wants to see on LinkedIn
 export const selectedFieldsStorage = storage.defineItem<string[]>('local:selectedFields', {
-  fallback: ['leadStatus', 'ecosystem'],
+  fallback: ['leadStatus', 'ecosystemId'],
 });
 
 // Store the discovered field definitions with their options

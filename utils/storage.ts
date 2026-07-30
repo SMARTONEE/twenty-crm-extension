@@ -6,6 +6,14 @@ export const twentyUrlStorage = storage.defineItem<string>('sync:twentyUrl', {
   fallback: 'https://crm.southconnect.io',
 });
 
+export const authTokenStorage = storage.defineItem<string>('local:authToken', {
+  fallback: '',
+});
+
+export const authTokenExpiryStorage = storage.defineItem<number>('local:authTokenExpiry', {
+  fallback: 0,
+});
+
 export const lastCapturedStorage = storage.defineItem<Array<{
   linkedinUrl: string;
   name: string;
@@ -26,6 +34,27 @@ export async function saveSettings(settings: Partial<ExtensionSettings>): Promis
   if (settings.twentyUrl !== undefined) {
     await twentyUrlStorage.setValue(settings.twentyUrl);
   }
+}
+
+export async function getStoredToken(): Promise<string | null> {
+  const token = await authTokenStorage.getValue();
+  const expiry = await authTokenExpiryStorage.getValue();
+  if (token && expiry && Date.now() < expiry) {
+    return token;
+  }
+  return null;
+}
+
+export async function storeToken(token: string, expiresAt?: number): Promise<void> {
+  await authTokenStorage.setValue(token);
+  if (expiresAt) {
+    await authTokenExpiryStorage.setValue(expiresAt);
+  }
+}
+
+export async function clearStoredToken(): Promise<void> {
+  await authTokenStorage.setValue('');
+  await authTokenExpiryStorage.setValue(0);
 }
 
 export async function addToRecentCaptures(capture: {
@@ -50,4 +79,3 @@ export async function addToRecentCaptures(capture: {
 export async function getRecentCaptures() {
   return lastCapturedStorage.getValue();
 }
-

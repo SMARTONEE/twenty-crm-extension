@@ -1,5 +1,5 @@
-import { TwentyApiClient, extractTokenFromCookie } from '../utils/twenty-api';
-import { getSettings, saveSettings, addToRecentCaptures, getRecentCaptures } from '../utils/storage';
+import { TwentyApiClient } from '../utils/twenty-api';
+import { getSettings, saveSettings, addToRecentCaptures, getRecentCaptures, getStoredToken, storeToken, clearStoredToken } from '../utils/storage';
 import type { ExtensionMessage, ExtensionResponse, LinkedInProfileData, LinkedInCompanyData } from '../types';
 
 // Cache for API client
@@ -20,8 +20,8 @@ async function getApiClient(): Promise<TwentyApiClient> {
     cachedTwentyUrl = settings.twentyUrl;
   }
   
-  // Get fresh token from cookie
-  const token = await getAuthToken(settings.twentyUrl);
+  // Get token from storage or from an open Twenty tab
+  const token = await getAuthToken();
   if (!token) {
     throw new Error('No authentication token found. Please log in to Twenty CRM.');
   }
@@ -30,54 +30,78 @@ async function getApiClient(): Promise<TwentyApiClient> {
   return apiClient;
 }
 
-// Extract domain from URL for cookie access
-function extractDomain(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.hostname;
-  } catch {
-    return url;
+// Get auth token: stored token first, then try to ask an open Twenty tab
+async function getAuthToken(): Promise<string | null> {
+  // 1. Check stored token
+  const storedToken = await getStoredToken();
+  if (storedToken) {
+    console.log('[Background] Using stored token');
+    return storedToken;
   }
+  
+  // 2. Try to get fresh token from an open Twenty tab
+  console.log('[Background] No stored token, querying Twenty tabs...');
+  const freshToken = await queryTwentyTabForToken();
+  if (freshToken) {
+    await storeToken(freshToken);
+    return freshToken;
+  }
+  
+  return null;
 }
 
-// Get auth token from Twenty's cookie
-async function getAuthToken(twentyUrl: string): Promise<string | null> {
+// Query an open Twenty tab for the current auth token from localStorage
+async function queryTwentyTabForToken(): Promise<string | null> {
   try {
-    // Try to get the tokenPair cookie from Twenty domain
-    const cookie = await browser.cookies.get({
-      url: twentyUrl,
-      name: 'tokenPair',
+    const settings = await getSettings();
+    if (!settings.twentyUrl) return null;
+    
+    // Find tabs matching the Twenty URL
+    const tabs = await browser.tabs.query({
+      url: `${settings.twentyUrl}/*`,
     });
     
-    console.log('Cookie lookup for', twentyUrl, ':', cookie ? 'found' : 'not found');
+    console.log('[Background] Found', tabs.length, 'Twenty tab(s)');
     
-    if (cookie?.value) {
-      const decodedValue = decodeURIComponent(cookie.value);
-      return extractTokenFromCookie(decodedValue);
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      try {
+        // Inject a script to read localStorage token
+        const results = await browser.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            const KEY = '***';
+            try {
+              const raw = localStorage.getItem(KEY);
+              if (!raw) return null;
+              const tokenPair = JSON.parse(raw);
+              const token = tokenPair?.accessOrWorkspaceAgnosticToken?.token || null;
+              if (token && tokenPair?.accessOrWorkspaceAgnosticToken?.expiresAt) {
+                const expiresAt = new Date(tokenPair.accessOrWorkspaceAgnosticToken.expiresAt).getTime();
+                if (Date.now() > expiresAt) return null;
+              }
+              return token;
+            } catch {
+              return null;
+            }
+          },
+        });
+        
+        const token = results[0]?.result;
+        if (token) {
+          console.log('[Background] Got token from Twenty tab via scripting');
+          return token;
+        }
+      } catch (error) {
+        console.error('[Background] Error executing script in Twenty tab:', error);
+        continue;
+      }
     }
-    
-    // Also try without www
-    const altUrl = twentyUrl.includes('://www.') 
-      ? twentyUrl.replace('://www.', '://') 
-      : twentyUrl.replace('://', '://www.');
-    
-    const altCookie = await browser.cookies.get({
-      url: altUrl,
-      name: 'tokenPair',
-    });
-    
-    console.log('Alt cookie lookup for', altUrl, ':', altCookie ? 'found' : 'not found');
-    
-    if (altCookie?.value) {
-      const decodedValue = decodeURIComponent(altCookie.value);
-      return extractTokenFromCookie(decodedValue);
-    }
-    
-    return null;
   } catch (error) {
-    console.error('Error getting auth token:', error);
-    return null;
+    console.error('[Background] Error querying Twenty tabs:', error);
   }
+  
+  return null;
 }
 
 // Check if a person already exists (by LinkedIn URL or name)
@@ -224,12 +248,21 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionRespon
   try {
     switch (message.type) {
       case 'GET_AUTH_TOKEN': {
-        const settings = await getSettings();
-        if (!settings.twentyUrl) {
-          return { success: false, error: 'Twenty URL not configured' };
-        }
-        const token = await getAuthToken(settings.twentyUrl);
+        const token = await getAuthToken();
         return { success: !!token, data: { hasToken: !!token } };
+      }
+      
+      case 'STORE_TOKEN': {
+        const { token } = message.payload as { token: string };
+        console.log('[Background] Storing token from Twenty content script');
+        await storeToken(token);
+        return { success: true };
+      }
+      
+      case 'CLEAR_TOKEN': {
+        console.log('[Background] Clearing stored token');
+        await clearStoredToken();
+        return { success: true };
       }
       
       case 'CHECK_DUPLICATE': {
@@ -250,9 +283,7 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionRespon
       
       case 'GET_SETTINGS': {
         const settings = await getSettings();
-        const hasToken = settings.twentyUrl 
-          ? !!(await getAuthToken(settings.twentyUrl)) 
-          : false;
+        const hasToken = !!(await getAuthToken());
         return { 
           success: true, 
           data: { ...settings, hasToken } 
@@ -267,6 +298,7 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionRespon
         if (newSettings.twentyUrl) {
           apiClient = null;
           cachedTwentyUrl = null;
+          await clearStoredToken();
         }
         console.log('Settings saved successfully');
         return { success: true };

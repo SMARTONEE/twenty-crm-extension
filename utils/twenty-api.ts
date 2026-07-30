@@ -602,11 +602,11 @@ export class TwentyApiClient {
 
   async testConnection(): Promise<boolean> {
     try {
-      // Simple query to test if the connection works
-      const result = await this.graphqlRequest<{ currentWorkspace: { id: string } }>(
-        `query { currentWorkspace { id } }`
+      // Simple query to test if GraphQL is accessible
+      const result = await this.graphqlRequest<{ __typename: string }>(
+        `query { __typename }`
       );
-      return !result.errors?.length && !!result.data?.currentWorkspace;
+      return !result.errors?.length && !!result.data?.__typename;
     } catch {
       return false;
     }
@@ -766,7 +766,32 @@ export class TwentyApiClient {
   }
 }
 
-// Helper to extract token from Twenty's tokenPair cookie
+// Helper to extract token from localStorage (Twenty v2.25+ — PR #21507)
+// Twenty now stores the token pair in localStorage under key 'TOKEN_PAIR_LOCAL_STORAGE_KEY'
+// instead of a cookie.
+const TOKEN_PAIR_LOCAL_STORAGE_KEY = '***';
+
+export function extractTokenFromLocalStorage(): string | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_PAIR_LOCAL_STORAGE_KEY);
+    if (!raw) return null;
+    const tokenPair: TwentyTokenPair = JSON.parse(raw);
+    const token = tokenPair.accessOrWorkspaceAgnosticToken?.token || null;
+    // Also check expiration
+    if (token && tokenPair.accessOrWorkspaceAgnosticToken?.expiresAt) {
+      const expiresAt = new Date(tokenPair.accessOrWorkspaceAgnosticToken.expiresAt).getTime();
+      if (Date.now() > expiresAt) {
+        console.log('[Twenty API] Token expired at', tokenPair.accessOrWorkspaceAgnosticToken.expiresAt);
+        return null;
+      }
+    }
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+// Helper to extract token from Twenty's tokenPair cookie (legacy, pre-PR #21507)
 export function extractTokenFromCookie(
   cookieValue: string
 ): string | null {

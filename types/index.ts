@@ -90,6 +90,8 @@ export type CaptureState = {
 // Message Types for Extension Communication
 export type MessageType =
   | 'GET_AUTH_TOKEN'
+  | 'STORE_TOKEN'
+  | 'CLEAR_TOKEN'
   | 'CHECK_DUPLICATE'
   | 'CREATE_RECORD'
   | 'UPDATE_RECORD'

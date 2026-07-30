@@ -358,11 +358,10 @@ export default defineContentScript({
       'MEETING_BOOKED', 'LOST', 'NOT_THE_GOOD_TIME',
     ];
     const ECOSYSTEMS = [
-      { id: 'tech-saas', name: 'Tech / SaaS' },
-      { id: 'service', name: 'Service' },
-      { id: 'industry', name: 'Industry' },
-      { id: 'consulting', name: 'Consulting' },
-      { id: 'other', name: 'Other' },
+      { id: '54d51226-e2d4-4a3d-8e21-c91e36888e5b', name: 'Twenty Agency' },
+      { id: '5bf5fb2f-89af-4ff6-833b-d90e38ce91f5', name: 'Ressources Provider' },
+      { id: '927f0d06-13dd-4ff5-9a94-43584de2efa0', name: 'Platform' },
+      { id: 'c3faf7ce-8994-44ee-86ac-22dcb0da3d85', name: 'Events' },
     ];
     
     // DOM elements
@@ -737,12 +736,15 @@ export default defineContentScript({
       render();
       
       try {
+        // Map display field names to API field names
+        const apiField = field === 'ecosystem' ? 'ecosystemId' : field;
+        
         const response = await browser.runtime.sendMessage({
           type: 'UPDATE_RECORD_FIELD',
           payload: {
             id: state.existingRecord.id,
             type: state.existingRecord.type,
-            field,
+            field: apiField,
             value,
           },
         }) as ExtensionResponse<{ id: string }>;
@@ -752,7 +754,7 @@ export default defineContentScript({
           return;
         }
         
-        showToast(`Updated ${field}!`);
+        showToast('Updated ' + field + '!');
       } catch (error) {
         console.error('Error updating field:', error);
         showToast('Failed to update');

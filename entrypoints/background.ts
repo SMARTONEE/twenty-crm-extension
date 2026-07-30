@@ -1,5 +1,5 @@
 import { TwentyApiClient } from '../utils/twenty-api';
-import { getSettings, saveSettings, addToRecentCaptures, getRecentCaptures, getStoredToken, storeToken, clearStoredToken } from '../utils/storage';
+import { getSettings, saveSettings, addToRecentCaptures, getRecentCaptures, getStoredToken, storeToken, clearStoredToken, getSelectedFields } from '../utils/storage';
 import type { ExtensionMessage, ExtensionResponse, LinkedInProfileData, LinkedInCompanyData } from '../types';
 
 // Cache for API client
@@ -312,6 +312,73 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionRespon
       case 'GET_RECENT_CAPTURES': {
         const captures = await getRecentCaptures();
         return { success: true, data: captures };
+      }
+
+      case 'GET_FIELD_CONFIG': {
+        // Return all available editable fields with their values
+        // These are standard Twenty fields — works for any Twenty instance
+        const fields = [
+          { name: 'leadStatus', label: 'Lead Status', type: 'SELECT', options: [
+            { value: 'BACKLOG', label: 'Backlog' },
+            { value: 'PG', label: 'PG' },
+            { value: 'APPROCHED', label: 'Approched' },
+            { value: 'RESPONDING', label: 'Responding' },
+            { value: 'INTERESTED', label: 'Interested' },
+            { value: 'MEETING_BOOKED', label: 'Meeting Booked' },
+            { value: 'LOST', label: 'Lost' },
+            { value: 'NOT_THE_GOOD_TIME', label: 'Not the good time' },
+          ]},
+          { name: 'source', label: 'Source', type: 'SELECT', options: [
+            { value: 'LINKEDIN_OUTBOUND', label: 'LinkedIn Outbound' },
+            { value: 'INCOMING_EMAIL', label: 'Incoming Email' },
+            { value: 'GOJIBERRY_AGENT', label: 'Gojiberry Agent' },
+          ]},
+          { name: 'approachType', label: 'Approach Type', type: 'SELECT', options: [
+            { value: 'AUTOMATED', label: 'Automated' },
+            { value: 'MANUAL', label: 'Manual' },
+          ]},
+          { name: 'campaignStatus', label: 'Campaign Status', type: 'SELECT', options: [
+            { value: 'ENROLLED', label: 'Enrolled' },
+            { value: 'COMPLETED', label: 'Completed' },
+            { value: 'RESPONDED', label: 'Responded' },
+            { value: 'INTERESTED', label: 'Interested' },
+            { value: 'MEETING', label: 'Meeting' },
+            { value: 'NO_ANSWER', label: 'No Answer' },
+            { value: 'NOT_INTERESTING', label: 'Not interesting' },
+          ]},
+          { name: 'enrichmentStatus', label: 'Enrichment Status', type: 'SELECT', options: [
+            { value: 'NO_ENRICH', label: 'No enrich' },
+            { value: 'ENRICHMENT', label: 'Enrichment' },
+            { value: 'ENRICHED', label: 'Enriched' },
+            { value: 'ENRICHED_NO_DATA', label: 'Enriched no data' },
+            { value: 'ALREADY_ENRICHED', label: 'Already enriched' },
+          ]},
+          { name: 'ecosystemId', label: 'Ecosystem', type: 'SELECT', options: [
+            { value: '54d51226-e2d4-4a3d-8e21-c91e36888e5b', label: 'Twenty Agency' },
+            { value: '5bf5fb2f-89af-4ff6-833b-d90e38ce91f5', label: 'Ressources Provider' },
+            { value: '927f0d06-13dd-4ff5-9a94-43584de2efa0', label: 'Platform' },
+            { value: 'c3faf7ce-8994-44ee-86ac-22dcb0da3d85', label: 'Events' },
+          ]},
+          { name: 'openToWork', label: 'Open To Work', type: 'BOOLEAN', options: [
+            { value: 'true', label: 'Yes' },
+            { value: 'false', label: 'No' },
+          ]},
+        ];
+
+        // Build values map for quick lookup
+        const values: Record<string, Array<{ value: string; label: string }>> = {};
+        for (const f of fields) {
+          if (f.options) values[f.name] = f.options;
+        }
+
+        // Only return fields the user has selected (from storage or defaults)
+        const selectedFields = await getSelectedFields();
+        const filtered = fields.filter(f => selectedFields.includes(f.name));
+
+        return {
+          success: true,
+          data: { fields: filtered, values },
+        };
       }
       
       case 'SEARCH_RECORDS': {

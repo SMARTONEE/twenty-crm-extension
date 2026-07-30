@@ -1,7 +1,8 @@
 import { storage } from '#imports';
 import type { ExtensionSettings } from '../types';
+import type { FieldDefinition } from './fields-config';
 
-// Define storage items with proper typing
+// Define storage items
 export const twentyUrlStorage = storage.defineItem<string>('sync:twentyUrl', {
   fallback: 'https://crm.southconnect.io',
 });
@@ -21,6 +22,16 @@ export const lastCapturedStorage = storage.defineItem<Array<{
   capturedAt: number;
   twentyId: string;
 }>>('local:lastCaptured', {
+  fallback: [],
+});
+
+// Store which fields the user wants to see on LinkedIn
+export const selectedFieldsStorage = storage.defineItem<string[]>('local:selectedFields', {
+  fallback: ['leadStatus', 'ecosystem'],
+});
+
+// Store the discovered field definitions with their options
+export const fieldDefinitionsStorage = storage.defineItem<FieldDefinition[]>('local:fieldDefinitions', {
   fallback: [],
 });
 
@@ -57,6 +68,22 @@ export async function clearStoredToken(): Promise<void> {
   await authTokenExpiryStorage.setValue(0);
 }
 
+export async function getSelectedFields(): Promise<string[]> {
+  return selectedFieldsStorage.getValue();
+}
+
+export async function setSelectedFields(fields: string[]): Promise<void> {
+  await selectedFieldsStorage.setValue(fields);
+}
+
+export async function setFieldDefinitions(defs: FieldDefinition[]): Promise<void> {
+  await fieldDefinitionsStorage.setValue(defs);
+}
+
+export async function getFieldDefinitions(): Promise<FieldDefinition[]> {
+  return fieldDefinitionsStorage.getValue();
+}
+
 export async function addToRecentCaptures(capture: {
   linkedinUrl: string;
   name: string;
@@ -64,15 +91,9 @@ export async function addToRecentCaptures(capture: {
   twentyId: string;
 }): Promise<void> {
   const current = await lastCapturedStorage.getValue();
-  const newCapture = {
-    ...capture,
-    capturedAt: Date.now(),
-  };
-  
-  // Keep only last 10 captures, remove duplicates
+  const newCapture = { ...capture, capturedAt: Date.now() };
   const filtered = current.filter((c) => c.linkedinUrl !== capture.linkedinUrl);
   const updated = [newCapture, ...filtered].slice(0, 10);
-  
   await lastCapturedStorage.setValue(updated);
 }
 

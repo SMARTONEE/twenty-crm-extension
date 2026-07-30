@@ -144,15 +144,22 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       '.pv-text-details__left-panel div.text-body-medium',
       '.ph5 div.text-body-medium',
       '[class*="text-body-medium"][class*="break-words"]',
+      '.pv-text-details__left-panel > div:nth-child(2)',
+      '.ph5 > div:nth-child(2)',
     ];
 
     let headline = '';
     for (const sel of headlineSelectors) {
       const el = document.querySelector(sel);
-      if (el && el.textContent?.trim() && !el.textContent.includes(fullName)) {
-        headline = el.textContent.trim();
-        console.log('[Scraper] Found headline via selector:', sel, '→', headline);
-        break;
+      if (el && el.textContent?.trim()) {
+        const text = el.textContent.trim();
+        // Accept even if it contains the name — just strip the name part
+        const withoutName = text.replace(new RegExp(fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '').trim();
+        if (withoutName.length > 1) {
+          headline = withoutName;
+          console.log('[Scraper] Found headline via selector:', sel, '→', headline);
+          break;
+        }
       }
     }
 
@@ -160,9 +167,35 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       headline = jsonLD?.headline || meta?.headline || '';
     }
 
-    // Company info
+    // Company info — multiple strategies
     const companyData = scrapeCurrentCompanyFromProfile();
-    const currentCompany = companyData?.name || extractCompanyFromHeadline(headline);
+    let currentCompany = companyData?.name || '';
+
+    // If no company from the profile, try the experience section broadly
+    if (!currentCompany) {
+      // LinkedIn experience section pattern
+      const expSelectors = [
+        '.pvs-entity__sub-components span[aria-hidden="true"]',
+        '.display-flex.align-items-center.mr1.t-bold span[aria-hidden="true"]',
+        '.pv-text-details__right-panel-item-text',
+        '.pv-entity__secondary-title',
+        '.experience-item__subtitle',
+      ];
+      for (const sel of expSelectors) {
+        const el = document.querySelector(sel);
+        const text = el?.textContent?.trim() || '';
+        if (text && text.length > 1 && text.length < 100 && !text.includes('Full-time') && !text.includes('Temps plein')) {
+          currentCompany = text.split('·')[0].trim();
+          console.log('[Scraper] Found company via exp section:', sel, '→', currentCompany);
+          break;
+        }
+      }
+    }
+
+    // Fallback to extracting from headline
+    if (!currentCompany) {
+      currentCompany = extractCompanyFromHeadline(headline);
+    }
 
     // Profile image
     const profileImageUrl = scrapeProfileImage()

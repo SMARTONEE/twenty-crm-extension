@@ -11,6 +11,7 @@ const FLOATING_BUTTON_STYLES = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     cursor: grab;
     user-select: none;
+    position: relative;
   }
 
   .twenty-capture-container.dragging {
@@ -265,11 +266,11 @@ const FLOATING_BUTTON_STYLES = `
 
   /* Search Panel */
   .twenty-search-panel {
-    position: fixed;
-    top: 50%;
-    right: 90px;
-    transform: translateY(-50%);
-    width: 320px;
+    position: absolute;
+    top: 0;
+    right: 100%;
+    margin-right: 12px;
+    width: 220px;
     background: white;
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.2);
@@ -1118,8 +1119,10 @@ export default defineContentScript({
     function handleDocumentClick(e: Event) {
       const target = e.target as HTMLElement;
       if (!target.closest('.twenty-capture-container')) {
-        if (showMenuDropdown) {
+        if (showMenuDropdown || showFieldEditor) {
           showMenuDropdown = false;
+          showFieldEditor = false;
+          editingField = null;
           render();
         }
       }

@@ -5,7 +5,7 @@ import type { CaptureState, LinkedInData, ExtensionResponse, TwentyPerson, Twent
 const FLOATING_BUTTON_STYLES = `
   .twenty-capture-container {
     position: fixed;
-    top: 50%;
+    top: 80px;
     right: 24px;
     z-index: 99999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;

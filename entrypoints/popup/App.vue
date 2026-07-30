@@ -365,7 +365,7 @@ async function toggleField(fieldName: string) {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: #3b82f6;
   color: white;
 }
 
@@ -519,13 +519,13 @@ async function toggleField(fieldName: string) {
 }
 
 .btn--primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  background: #3b82f6;
   color: white;
 }
 
 .btn--primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .btn--secondary {

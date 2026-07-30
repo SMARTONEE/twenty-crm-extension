@@ -55,34 +55,40 @@ const FLOATING_BUTTON_STYLES = `
   }
   
   .twenty-capture-btn--ready {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: #3b82f6;
     color: white;
   }
   
   .twenty-capture-btn--exists {
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    background: #6b7280;
     color: white;
   }
   
   .twenty-capture-btn--saving {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: #f59e0b;
     color: white;
     pointer-events: none;
   }
   
   .twenty-capture-btn--saved {
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    background: #059669;
     color: white;
   }
   
   .twenty-capture-btn--error {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: #ef4444;
     color: white;
   }
   
   .twenty-capture-btn--idle {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: #3b82f6;
     color: white;
+  }
+  
+  .twenty-capture-btn--loading {
+    background: #6366f1;
+    color: white;
+    pointer-events: none;
   }
   
   .twenty-menu-btn {
@@ -92,7 +98,7 @@ const FLOATING_BUTTON_STYLES = `
     padding: 12px 12px;
     border: none;
     border-left: 1px solid rgba(255,255,255,0.25);
-    background: linear-gradient(135deg, #5558e6 0%, #7c5ce0 100%);
+    background: rgba(0,0,0,0.12);
     color: white;
     cursor: pointer;
     font-size: 12px;
@@ -103,7 +109,7 @@ const FLOATING_BUTTON_STYLES = `
   }
   
   .twenty-menu-btn--exists {
-    background: linear-gradient(135deg, #0d9668 0%, #047857 100%);
+    background: rgba(0,0,0,0.15);
   }
   
   .twenty-menu-btn:hover {

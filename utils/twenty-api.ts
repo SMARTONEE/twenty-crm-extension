@@ -752,6 +752,36 @@ export class TwentyApiClient {
     }
   }
 
+  // Update a single field on a record (for in-LinkedIn editing)
+  async updateRecordField(
+    id: string,
+    type: 'person' | 'company',
+    field: string,
+    value: string
+  ): Promise<void> {
+    if (type === 'person') {
+      const input: Record<string, unknown> = {};
+      input[field] = value;
+      const result = await this.graphqlRequest<{ updatePerson: { id: string } }>(
+        UPDATE_PERSON,
+        { id, input }
+      );
+      if (result.errors?.length) {
+        throw new Error(result.errors[0].message);
+      }
+    } else {
+      const input: Record<string, unknown> = {};
+      input[field] = value;
+      const result = await this.graphqlRequest<{ updateCompany: { id: string } }>(
+        UPDATE_COMPANY,
+        { id, input }
+      );
+      if (result.errors?.length) {
+        throw new Error(result.errors[0].message);
+      }
+    }
+  }
+
   private normalizeLinkedInUrl(url: string): string {
     // Extract the profile/company identifier from various LinkedIn URL formats
     const match = url.match(/linkedin\.com\/(in|company)\/([^/?]+)/);

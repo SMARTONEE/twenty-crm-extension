@@ -332,6 +332,18 @@ async function handleMessage(message: ExtensionMessage): Promise<ExtensionRespon
         return { success: true, data: { id } };
       }
       
+      case 'UPDATE_RECORD_FIELD': {
+        const { id, type, field, value } = message.payload as {
+          id: string;
+          type: 'person' | 'company';
+          field: string;
+          value: string;
+        };
+        const client = await getApiClient();
+        await client.updateRecordField(id, type, field, value);
+        return { success: true, data: { id } };
+      }
+      
       default:
         return { success: false, error: 'Unknown message type' };
     }

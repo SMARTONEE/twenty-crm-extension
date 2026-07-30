@@ -349,6 +349,18 @@ export default defineContentScript({
     let searchResults: SearchResult[] = [];
     let isSearching = false;
     let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Field editor state
+    let showFieldEditor = false;
+    let editingField: 'leadStatus' | 'ecosystem' | null = null;
+    const LEAD_STATUS_VALUES = ['COLD', 'WARM', 'HOT', 'CUSTOMER', 'NOT_A_LEAD'];
+    const ECOSYSTEMS = [
+      { id: 'tech-saas', name: 'Tech / SaaS' },
+      { id: 'service', name: 'Service' },
+      { id: 'industry', name: 'Industry' },
+      { id: 'consulting', name: 'Consulting' },
+      { id: 'other', name: 'Other' },
+    ];
     
     // DOM elements
     let container: HTMLDivElement | null = null;
@@ -704,6 +716,45 @@ export default defineContentScript({
         setState({ status: previousStatus, error: 'Failed to update', data });
       }
     }
+
+    // Open field editor for a specific field
+    function openFieldEditor(field: 'leadStatus' | 'ecosystem') {
+      editingField = field;
+      showFieldEditor = true;
+      showMenuDropdown = false;
+      render();
+    }
+
+    // Update a single field on the existing record
+    async function handleFieldUpdate(field: string, value: string) {
+      if (!state.existingRecord) return;
+      
+      showFieldEditor = false;
+      editingField = null;
+      render();
+      
+      try {
+        const response = await browser.runtime.sendMessage({
+          type: 'UPDATE_RECORD_FIELD',
+          payload: {
+            id: state.existingRecord.id,
+            type: state.existingRecord.type,
+            field,
+            value,
+          },
+        }) as ExtensionResponse<{ id: string }>;
+        
+        if (!response.success) {
+          showToast(response.error || 'Failed to update');
+          return;
+        }
+        
+        showToast(`Updated ${field}!`);
+      } catch (error) {
+        console.error('Error updating field:', error);
+        showToast('Failed to update');
+      }
+    }
     
     // Handle search input
     function handleSearchInput(e: Event) {
@@ -759,6 +810,20 @@ export default defineContentScript({
           updateItem.innerHTML = `${ICONS.refresh}<span>Update from LinkedIn</span>`;
           updateItem.addEventListener('click', () => handleMenuOption('update'));
           dropdown.appendChild(updateItem);
+
+          // Lead Status
+          const leadItem = document.createElement('button');
+          leadItem.className = 'twenty-menu-item';
+          leadItem.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span>Set Lead Status</span>';
+          leadItem.addEventListener('click', () => openFieldEditor('leadStatus'));
+          dropdown.appendChild(leadItem);
+
+          // Ecosystem
+          const ecoItem = document.createElement('button');
+          ecoItem.className = 'twenty-menu-item';
+          ecoItem.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span>Set Ecosystem</span>';
+          ecoItem.addEventListener('click', () => openFieldEditor('ecosystem'));
+          dropdown.appendChild(ecoItem);
         }
         
         if (state.status === 'ready') {
@@ -834,6 +899,45 @@ export default defineContentScript({
         
         // Focus input after render
         setTimeout(() => input.focus(), 50);
+      }
+
+      // Field editor panel
+      if (showFieldEditor && editingField) {
+        const editorPanel = document.createElement('div');
+        editorPanel.className = 'twenty-search-panel';
+        
+        const header = document.createElement('div');
+        header.className = 'twenty-search-header';
+        header.innerHTML = `<span class="twenty-search-title">Set ${editingField === 'leadStatus' ? 'Lead Status' : 'Ecosystem'}</span>`;
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'twenty-search-close';
+        closeBtn.innerHTML = ICONS.close;
+        closeBtn.addEventListener('click', () => {
+          showFieldEditor = false;
+          editingField = null;
+          render();
+        });
+        header.appendChild(closeBtn);
+        editorPanel.appendChild(header);
+        
+        const resultsDiv = document.createElement('div');
+        resultsDiv.className = 'twenty-search-results';
+        
+        const values = editingField === 'leadStatus' ? LEAD_STATUS_VALUES : ECOSYSTEMS;
+        
+        values.forEach((val) => {
+          const item = document.createElement('div');
+          item.className = 'twenty-search-result';
+          const label = typeof val === 'string' ? val : val.name;
+          item.innerHTML = `<div class="twenty-search-result-name">${label}</div>`;
+          item.addEventListener('click', () => {
+            handleFieldUpdate(editingField, typeof val === 'string' ? val : val.id);
+          });
+          resultsDiv.appendChild(item);
+        });
+        
+        editorPanel.appendChild(resultsDiv);
+        wrapper.appendChild(editorPanel);
       }
       
       // Toast

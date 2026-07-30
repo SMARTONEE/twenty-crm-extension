@@ -96,6 +96,7 @@ export type MessageType =
   | 'CHECK_DUPLICATE'
   | 'CREATE_RECORD'
   | 'UPDATE_RECORD'
+  | 'UPDATE_RECORD_FIELD'
   | 'SEARCH_RECORDS'
   | 'GET_SETTINGS'
   | 'SAVE_SETTINGS'

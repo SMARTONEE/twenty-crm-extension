@@ -54,6 +54,27 @@ function tryMetaTags(): { name?: string; headline?: string; image?: string; desc
   return null;
 }
 
+// Validate that a string looks like a real person's name (not LinkedIn UI garbage)
+const LINKEDIN_UI_GARBAGE = new Set([
+  'notifications', 'messaging', 'search', 'linkedin', 'home', 'my network',
+  'jobs', 'view profile', 'sign in', 'sign up', 'messagerie', 'notifications',
+  'réseau', 'offres d\'emploi', 'accueil', 'post', 'write article',
+  'write a post', 'start a post', '0', '1', 'premium', 'learning',
+]);
+function isValidProfileName(text: string): boolean {
+  if (!text || text.length < 2 || text.length > 120) return false;
+  // Must contain at least one letter
+  if (!/[a-zA-ZÀ-ÿ]/.test(text)) return false;
+  // Must not be just a number with symbols
+  if (/^[\d\s,.\-+()]+$/.test(text)) return false;
+  const lower = text.toLowerCase().trim();
+  // Reject known LinkedIn UI garbage
+  if (LINKEDIN_UI_GARBAGE.has(lower)) return false;
+  // Reject single-word UI-like elements
+  if (lower === 'linkedin' || lower.startsWith('http')) return false;
+  return true;
+}
+
 // Scrape person profile data from LinkedIn page
 export function scrapePersonProfile(): LinkedInProfileData | null {
   try {
@@ -71,7 +92,6 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
     // --- Strategy 3: DOM selectors (tiered fallbacks) ---
     // Name selectors — LinkedIn changes these constantly, so cast a wide net
     const nameSelectors = [
-      'h1',
       'h1.text-heading-xlarge',
       'h1.inline.t-24',
       'h1.t-24.v-align-middle',
@@ -80,14 +100,16 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       '.ph5 h1',
       '.pv-text-details__left-panel h1',
       '[data-generated-suggestion-target] h1',
+      'h1',  // Last resort — will be validated
     ];
 
     let nameElement: Element | null = null;
     for (const sel of nameSelectors) {
       const el = document.querySelector(sel);
-      if (el && el.textContent?.trim() && el.textContent.trim().length > 1) {
+      const text = el?.textContent?.trim() || '';
+      if (text && isValidProfileName(text)) {
         nameElement = el;
-        console.log('[Scraper] Found name via selector:', sel, '→', el.textContent.trim());
+        console.log('[Scraper] Found name via selector:', sel, '→', text);
         break;
       }
     }
@@ -97,8 +119,7 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       const allH1s = document.querySelectorAll('h1');
       for (const h1 of allH1s) {
         const text = h1.textContent?.trim() || '';
-        // Skip navigation/hidden h1s, LinkedIn header text
-        if (text.length > 1 && !text.includes('LinkedIn') && h1.offsetParent !== null) {
+        if (isValidProfileName(text) && h1.offsetParent !== null) {
           nameElement = h1;
           console.log('[Scraper] Found name via h1 fallback:', text);
           break;
@@ -111,7 +132,7 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
       const allH2s = document.querySelectorAll('h2');
       for (const h2 of allH2s) {
         const text = h2.textContent?.trim() || '';
-        if (text.length > 1 && !text.includes('LinkedIn') && h2.offsetParent !== null) {
+        if (isValidProfileName(text) && h2.offsetParent !== null) {
           nameElement = h2;
           console.log('[Scraper] Found name via h2 fallback:', text);
           break;
@@ -124,18 +145,21 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
     if (!nameElement) {
       const title = document.title || '';
       const titleParts = title.split('|')[0]?.trim() || '';
-      if (titleParts && titleParts.length > 1 && titleParts.toLowerCase() !== 'linkedin') {
-        titleName = titleParts;
+      const cleaned = titleParts.replace(/\(\d+\)\s*$/,'').trim(); // Remove "(123)" follower count
+      if (isValidProfileName(cleaned)) {
+        titleName = cleaned;
         console.log('[Scraper] Found name via document.title:', titleName);
       }
     }
 
     // Fallback: any visible, prominent heading-like element at the top of the page
     if (!nameElement) {
-      const candidates = document.querySelectorAll('[class*="text-heading"], [class*="t-24"], [class*="t-32"], [class*="v-align-middle"], header h2, .pv-top-card h2, [class*="inline"][class*="t-"]');
+      const candidates = document.querySelectorAll(
+        '[class*="text-heading"], [class*="t-24"], [class*="t-32"], [class*="v-align-middle"], header h2, .pv-top-card h2, [class*="inline"][class*="t-"]'
+      );
       for (const el of candidates) {
         const text = el.textContent?.trim() || '';
-        if (text.length > 1 && text.length < 80 && !text.includes('LinkedIn') && !text.includes('View profile') && el.offsetParent !== null) {
+        if (isValidProfileName(text) && el.offsetParent !== null) {
           nameElement = el;
           console.log('[Scraper] Found name via heading fallback:', text);
           break;
@@ -144,11 +168,11 @@ export function scrapePersonProfile(): LinkedInProfileData | null {
     }
 
     // If all DOM methods fail, try JSON-LD, meta, and document.title
-    const fullName = nameElement?.textContent?.trim()
-      || jsonLD?.name
-      || meta?.name
-      || titleName
-      || '';
+    const candidateName = nameElement?.textContent?.trim() || '';
+    const fullName = isValidProfileName(candidateName) ? candidateName
+      : (jsonLD?.name && isValidProfileName(jsonLD.name)) ? jsonLD.name
+      : (meta?.name && isValidProfileName(meta.name)) ? meta.name
+      : titleName;
 
     if (!fullName) {
       console.warn('[Scraper] Could not find name — all strategies exhausted');

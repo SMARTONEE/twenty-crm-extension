@@ -57,21 +57,19 @@ function tryMetaTags(): { name?: string; headline?: string; image?: string; desc
 // Validate that a string looks like a real person's name (not LinkedIn UI garbage)
 const LINKEDIN_UI_GARBAGE = new Set([
   'notifications', 'messaging', 'search', 'linkedin', 'home', 'my network',
-  'jobs', 'view profile', 'sign in', 'sign up', 'messagerie', 'notifications',
+  'jobs', 'view profile', 'sign in', 'sign up', 'messagerie',
   'réseau', 'offres d\'emploi', 'accueil', 'post', 'write article',
-  'write a post', 'start a post', '0', '1', 'premium', 'learning',
+  'write a post', 'start a post', 'premium', 'learning',
 ]);
 function isValidProfileName(text: string): boolean {
   if (!text || text.length < 2 || text.length > 120) return false;
-  // Must contain at least one letter
-  if (!/[a-zA-ZÀ-ÿ]/.test(text)) return false;
-  // Must not be just a number with symbols
-  if (/^[\d\s,.\-+()]+$/.test(text)) return false;
+  // Reject pure numbers (like "0", "123", "1,234")
+  if (/^[\d,.\s]+$/.test(text)) return false;
   const lower = text.toLowerCase().trim();
   // Reject known LinkedIn UI garbage
   if (LINKEDIN_UI_GARBAGE.has(lower)) return false;
-  // Reject single-word UI-like elements
-  if (lower === 'linkedin' || lower.startsWith('http')) return false;
+  // Reject URLs
+  if (/^https?:\/\//.test(lower)) return false;
   return true;
 }
 

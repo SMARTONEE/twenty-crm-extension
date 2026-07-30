@@ -102,6 +102,7 @@ export type MessageType =
   | 'SAVE_SETTINGS'
   | 'TEST_CONNECTION'
   | 'GET_RECENT_CAPTURES'
+  | 'GET_FIELD_CONFIG'
   | 'SCRAPE_PAGE';
 
 export type ExtensionMessage = {

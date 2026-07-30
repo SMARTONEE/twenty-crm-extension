@@ -393,6 +393,9 @@ export default defineContentScript({
       // Initial render
       render();
       
+      // Load field configuration
+      loadFieldConfig();
+      
       // Check for existing record after a short delay
       setTimeout(checkExisting, 1500);
     }
